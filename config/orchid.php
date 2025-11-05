@@ -1,8 +1,12 @@
-'resource' => [
-    'stylesheets' => [
-        asset('css/kanban.css'), // Adicione aqui
+<?php
+
+return [
+    'resource' => [
+        'stylesheets' => [
+            'css/kanban.css', // ✅ apenas o caminho relativo
+        ],
+        'scripts' => [
+            // 'js/kanban.js', // se precisar
+        ],
     ],
-    'scripts' => [
-        // Se precisar de JS custom
-    ],
-],
+];
