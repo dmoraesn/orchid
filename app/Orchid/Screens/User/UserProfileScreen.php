@@ -11,7 +11,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Orchid\Access\Impersonation;
 use App\Models\User;
-use Orchid\Screen\Action;
 use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Screen;
 use Orchid\Support\Color;
@@ -21,10 +20,7 @@ use Orchid\Support\Facades\Toast;
 class UserProfileScreen extends Screen
 {
     /**
-     * Fetch data to be displayed on the screen.
-     *
-     *
-     * @return array
+     * Dados para a tela.
      */
     public function query(Request $request): iterable
     {
@@ -34,36 +30,34 @@ class UserProfileScreen extends Screen
     }
 
     /**
-     * The name of the screen displayed in the header.
+     * Título da tela.
      */
     public function name(): ?string
     {
-        return 'My Account';
+        return 'Minha Conta';
     }
 
     /**
-     * Display header description.
+     * Descrição.
      */
     public function description(): ?string
     {
-        return 'Update your account details such as name, email address and password';
+        return 'Atualize suas informações de perfil, como nome, e-mail e senha.';
     }
 
     /**
-     * The screen's action buttons.
-     *
-     * @return Action[]
+     * Botões de ação.
      */
     public function commandBar(): iterable
     {
         return [
-            Button::make('Back to my account')
+            Button::make('Voltar para minha conta')
                 ->novalidate()
                 ->canSee(Impersonation::isSwitch())
                 ->icon('bs.people')
                 ->route('platform.switch.logout'),
 
-            Button::make('Sign out')
+            Button::make('Sair')
                 ->novalidate()
                 ->icon('bs.box-arrow-left')
                 ->route('platform.logout'),
@@ -71,26 +65,26 @@ class UserProfileScreen extends Screen
     }
 
     /**
-     * @return \Orchid\Screen\Layout[]
+     * Layout da tela.
      */
     public function layout(): iterable
     {
         return [
             Layout::block(UserEditLayout::class)
-                ->title(__('Profile Information'))
-                ->description(__("Update your account's profile information and email address."))
+                ->title('Informações do Perfil')
+                ->description('Atualize as informações do seu perfil e endereço de e-mail.')
                 ->commands(
-                    Button::make(__('Save'))
+                    Button::make('Salvar')
                         ->type(Color::BASIC())
                         ->icon('bs.check-circle')
                         ->method('save')
                 ),
 
             Layout::block(ProfilePasswordLayout::class)
-                ->title(__('Update Password'))
-                ->description(__('Ensure your account is using a long, random password to stay secure.'))
+                ->title('Atualizar Senha')
+                ->description('Garanta que sua conta use uma senha longa e aleatória para maior segurança.')
                 ->commands(
-                    Button::make(__('Update password'))
+                    Button::make('Atualizar senha')
                         ->type(Color::BASIC())
                         ->icon('bs.check-circle')
                         ->method('changePassword')
@@ -98,35 +92,50 @@ class UserProfileScreen extends Screen
         ];
     }
 
+    /**
+     * MÉTODO OBRIGATÓRIO – Orchid exige ...$arguments
+     */
+    public function __invoke(Request $request, ...$arguments): iterable
+    {
+        return $this->query($request);
+    }
+
+    /**
+     * Salvar perfil.
+     */
     public function save(Request $request): void
     {
+        $user = $request->user();
+
         $request->validate([
-            'user.name'  => 'required|string',
+            'user.name'  => 'required|string|max:255',
             'user.email' => [
                 'required',
-                Rule::unique(User::class, 'email')->ignore($request->user()),
+                'email',
+                Rule::unique(User::class, 'email')->ignore($user->id),
             ],
         ]);
 
-        $request->user()
-            ->fill($request->get('user'))
-            ->save();
+        $user->fill($request->get('user'))->save();
 
-        Toast::info(__('Profile updated.'));
+        Toast::success('Perfil atualizado com sucesso.');
     }
 
+    /**
+     * Alterar senha.
+     */
     public function changePassword(Request $request): void
     {
-        $guard = config('platform.guard', 'web');
         $request->validate([
-            'old_password' => 'required|current_password:'.$guard,
-            'password'     => 'required|confirmed|different:old_password',
+            'old_password'          => 'required|current_password:web',
+            'password'              => 'required|confirmed|min:8|different:old_password',
+            'password_confirmation' => 'required',
         ]);
 
-        tap($request->user(), function ($user) use ($request) {
-            $user->password = Hash::make($request->get('password'));
-        })->save();
+        $request->user()->update([
+            'password' => Hash::make($request->password),
+        ]);
 
-        Toast::info(__('Password changed.'));
+        Toast::success('Senha alterada com sucesso.');
     }
 }

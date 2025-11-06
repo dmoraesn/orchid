@@ -2,160 +2,207 @@
 
 namespace App\Orchid\Screens;
 
-use App\Models\Opportunity;
+use App\Models\Lead;
 use App\Models\User;
-use App\Orchid\Layouts\Kanban\KanbanLayout;
 use Illuminate\Http\Request;
+use Orchid\Screen\Actions\Link;
+use Orchid\Screen\Actions\ModalToggle;
+use Orchid\Screen\Fields\Input;
+use Orchid\Screen\Fields\Select;
 use Orchid\Screen\Screen;
 use Orchid\Support\Facades\Layout;
 use Orchid\Support\Facades\Toast;
-use Orchid\Screen\Actions\Link;
-use Orchid\Screen\Fields\Input;
-use Orchid\Screen\Fields\Select;
 
 class OpportunityListScreen extends Screen
 {
-    /**
-     * Nome e descrição da tela
-     */
-    public string $name = 'Kanban de Oportunidades';
-    public string $description = 'Visão Kanban do pipeline de vendas.';
+    /** Título da página */
+    public $name = 'Kanban de Oportunidades';
+
+    /** Descrição */
+    public $description = 'Visualização Kanban do funil de vendas com arrastar e soltar.';
+
+    /** Permissão necessária */
+    public $permission = ['platform.opportunity.list'];
 
     /**
-     * Etapas do pipeline
+     * Dados para a view.
      */
-    protected array $stages = [
-        'Novo Lead / Sem Atendimento',
-        'Qualificação / Em Atendimento',
-        'Apresentação / Visita',
-        'Proposta / Negociação',
-        'Formalização (Arras)',
-        'Fechado Ganho',
-        'Perdido (Lost)',
-    ];
+    public function query(): array
+    {
+        $filters = request()->get('filters', []);
+
+        return [
+            'stages'     => $this->stages(),
+            'kanbanData' => $this->getKanbanData($filters),
+            'users'      => User::select('id', 'name')->get(),
+            'filters'    => $filters, // Para manter estado no modal
+        ];
+    }
 
     /**
-     * Dados compartilhados com o layout
-     */
-    protected array $data = [];
-
-    /**
-     * Botões do topo
+     * Barra de comandos (botões superiores).
      */
     public function commandBar(): array
     {
         return [
+            ModalToggle::make('Filtros')
+                ->modal('filterModal')
+                ->icon('filter')
+                ->class('btn btn-sm btn-outline-primary'),
+
             Link::make('Nova Oportunidade')
                 ->icon('plus')
-                ->route('platform.opportunity.create'),
+                ->route('platform.opportunity.create')
+                ->class('btn btn-sm btn-primary'),
         ];
     }
 
     /**
-     * Consulta principal
-     */
-    public function query(): array
-    {
-        $user = auth()->user();
-
-        $filters = request()->only(['nome_lead', 'email', 'etapa_pipeline', 'corretor_id']);
-
-        $opportunities = Opportunity::query()
-            ->when(!$user->hasAccess('platform.systems'), fn($q) =>
-                $q->where('corretor_id', $user->id)
-            )
-            ->when($filters['nome_lead'] ?? false, fn($q, $v) =>
-                $q->where('nome_lead', 'like', "%$v%")
-            )
-            ->when($filters['email'] ?? false, fn($q, $v) =>
-                $q->where('email', 'like', "%$v%")
-            )
-            ->when($filters['etapa_pipeline'] ?? false, fn($q, $v) =>
-                $q->where('etapa_pipeline', $v)
-            )
-            ->when($filters['corretor_id'] ?? false, fn($q, $v) =>
-                $q->where('corretor_id', $v)
-            )
-            ->get();
-
-        // Agrupa as oportunidades por etapa
-        $kanbanData = collect($this->stages)
-            ->mapWithKeys(fn($stage) => [
-                $stage => $opportunities->where('etapa_pipeline', $stage)
-            ]);
-
-        // Lista de corretores disponíveis
-        $corretores = User::query()
-            ->whereHas('roles', fn($q) => $q->whereIn('slug', [
-                'corretor', 'imobiliaria', 'administrator'
-            ]))
-            ->pluck('name', 'id')
-            ->toArray();
-
-        return $this->data = [
-            'stages'     => $this->stages,
-            'kanbanData' => $kanbanData,
-            'corretores' => $corretores,
-            'filters'    => $filters,
-        ];
-    }
-
-    /**
-     * Layout principal da tela (Filtros + Kanban)
+     * Layout da tela.
      */
     public function layout(): array
     {
         return [
-            Layout::rows([
-                Input::make('nome_lead')
-                    ->title('Nome do Lead')
-                    ->placeholder('Buscar...')
-                    ->value($this->data['filters']['nome_lead'] ?? ''),
+            // Modal de filtros
+            Layout::modal('filterModal', [
+                Layout::rows([
+                    Input::make('filters.name')
+                        ->title('Nome do Lead')
+                        ->placeholder('Buscar por nome...')
+                        ->value(request('filters.name')),
 
-                Input::make('email')
-                    ->title('E-mail')
-                    ->type('email')
-                    ->value($this->data['filters']['email'] ?? ''),
+                    Input::make('filters.email')
+                        ->title('E-mail')
+                        ->placeholder('Buscar por e-mail...')
+                        ->value(request('filters.email')),
 
-                Select::make('etapa_pipeline')
-                    ->title('Etapa')
-                    ->options(array_combine($this->data['stages'], $this->data['stages']))
-                    ->empty('Todas as etapas')
-                    ->value($this->data['filters']['etapa_pipeline'] ?? ''),
+                    Select::make('filters.etapa')
+                        ->title('Etapa')
+                        ->options(array_combine($this->stages(), $this->stages()))
+                        ->empty('Todas as etapas')
+                        ->value(request('filters.etapa')),
 
-                Select::make('corretor_id')
-                    ->title('Corretor')
-                    ->options($this->data['corretores'])
-                    ->empty('Todos os corretores')
-                    ->value($this->data['filters']['corretor_id'] ?? ''),
+                    Select::make('filters.corretor')
+                        ->title('Corretor')
+                        ->fromModel(User::class, 'name', 'id')
+                        ->empty('Todos os corretores')
+                        ->value(request('filters.corretor')),
+                ]),
             ])
-            ->title('Filtros')
-            ->canSee(true), // depois podemos esconder atrás de um botão “Mostrar Filtros”
+                ->title('Filtros')
+                ->applyButton('Aplicar')
+                ->closeButton('Fechar'),
 
-            KanbanLayout::class,
+            // Kanban principal
+            Layout::view('platform.kanban.kanban'),
         ];
     }
 
     /**
-     * Atualiza o estágio da oportunidade via drag-and-drop
+     * Etapas fixas do pipeline.
+     */
+    protected function stages(): array
+    {
+        return [
+            'Novo Lead / Sem Atendimento',
+            'Qualificação / Em Atendimento',
+            'Apresentação / Visita',
+            'Proposta / Negociação',
+            'Formalização (Arras)',
+            'Fechado Ganho',
+            'Perdido (Lost)',
+        ];
+    }
+
+    /**
+     * Dados agrupados por etapa, com suporte a filtros.
+     */
+    protected function getKanbanData(array $filters = []): array
+    {
+        $data = [];
+
+        foreach ($this->stages() as $stage) {
+            $query = Lead::where('etapa', $stage);
+
+            if (!empty($filters['name'])) {
+                $query->where('nome', 'like', '%' . $filters['name'] . '%');
+            }
+
+            if (!empty($filters['email'])) {
+                $query->where('email', 'like', '%' . $filters['email'] . '%');
+            }
+
+            if (!empty($filters['corretor'])) {
+                $query->where('user_id', $filters['corretor']);
+            }
+
+            if (!empty($filters['etapa']) && $filters['etapa'] !== $stage) {
+                continue; // Pula etapas que não batem com o filtro
+            }
+
+            $data[$stage] = $query->take(5)->get();
+        }
+
+        return $data;
+    }
+
+    /**
+     * Atualiza a etapa do lead via drag & drop (AJAX).
      */
     public function updateStage(Request $request)
     {
         $validated = $request->validate([
-            'opportunity_id' => ['required', 'exists:opportunities,id'],
-            'new_stage'      => ['required', 'in:' . implode(',', $this->stages)],
+            'opportunity_id' => 'required|integer|exists:leads,id',
+            'new_stage'      => 'required|string|in:' . implode(',', $this->stages()),
         ]);
 
-        $opportunity = Opportunity::findOrFail($validated['opportunity_id']);
+        $lead = Lead::findOrFail($validated['opportunity_id']);
+        $lead->etapa = $validated['new_stage'];
+        $lead->save();
 
-        if (!auth()->user()->hasAccess('platform.systems') && $opportunity->corretor_id !== auth()->id()) {
-            Toast::error('Você não tem permissão para mover esta oportunidade.');
-            return response()->json(['success' => false], 403);
+        Toast::success('Etapa atualizada com sucesso!');
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Carrega mais leads via AJAX (botão "Ver mais").
+     */
+    public function loadMore(Request $request)
+    {
+        $request->validate([
+            'etapa'  => 'required|string|in:' . implode(',', $this->stages()),
+            'offset' => 'required|integer|min:0',
+        ]);
+
+        $etapa  = $request->etapa;
+        $offset = $request->integer('offset');
+        $limit  = 5;
+
+        $filters = $request->get('filters', []);
+        $query   = Lead::where('etapa', $etapa);
+
+        if (!empty($filters['name'])) {
+            $query->where('nome', 'like', '%' . $filters['name'] . '%');
+        }
+        if (!empty($filters['email'])) {
+            $query->where('email', 'like', '%' . $filters['email'] . '%');
+        }
+        if (!empty($filters['corretor'])) {
+            $query->where('user_id', $filters['corretor']);
         }
 
-        $opportunity->update(['etapa_pipeline' => $validated['new_stage']]);
+        $total = $query->count();
+        $leads = $query->skip($offset)->take($limit)->get();
 
-        Toast::success("Oportunidade #{$opportunity->id} movida para '{$validated['new_stage']}'.");
-        return response()->json(['success' => true]);
+        return response()->json([
+            'leads'   => $leads->map(fn($l) => [
+                'id'    => $l->id,
+                'nome'  => $l->nome ?? 'Sem nome',
+                'email' => $l->email ?? 'Sem e-mail',
+                'valor' => $l->valor ?? 0,
+            ]),
+            'hasMore' => ($offset + $limit) < $total,
+        ]);
     }
 }

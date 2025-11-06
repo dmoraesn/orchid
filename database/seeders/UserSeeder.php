@@ -9,31 +9,18 @@ use Orchid\Platform\Models\Role;
 
 class UserSeeder extends Seeder
 {
-    /**
-     * Executa a criação dos usuários base do sistema.
-     */
     public function run(): void
     {
-        // 🔹 Garante que os papéis existam
-        $adminRole = Role::firstOrCreate(
-            ['slug' => 'administrator'],
-            [
-                'name' => 'Administrador',
-                'permissions' => [
-                    'platform.index' => true,
-                ],
-            ]
-        );
+        // 🔹 Obtém os papéis criados no RolesAndPermissionsSeeder
+        $adminRole = Role::firstOrCreate(['slug' => 'administrator'], [
+            'name' => 'Administrador Global',
+            'permissions' => ['platform.index' => true],
+        ]);
 
-        $corretorRole = Role::firstOrCreate(
-            ['slug' => 'corretor'],
-            [
-                'name' => 'Corretor',
-                'permissions' => [
-                    'platform.index' => true,
-                ],
-            ]
-        );
+        $corretorRole = Role::firstOrCreate(['slug' => 'corretor'], [
+            'name' => 'Corretor de Vendas',
+            'permissions' => ['platform.index' => true],
+        ]);
 
         // 🔹 1. Usuário Administrador
         $admin = User::firstOrCreate(
@@ -41,13 +28,11 @@ class UserSeeder extends Seeder
             [
                 'name'        => 'Admin do CRM',
                 'password'    => Hash::make('password'),
-                'permissions' => [
-                    'platform.index' => true,
-                ],
+                'permissions' => ['platform.index' => true],
             ]
         );
 
-        // Evita duplicar vínculo
+        // Vincula papel se não estiver vinculado
         if (! $admin->roles()->where('id', $adminRole->id)->exists()) {
             $admin->addRole($adminRole);
         }
@@ -58,9 +43,7 @@ class UserSeeder extends Seeder
             [
                 'name'        => 'Ana Corretora',
                 'password'    => Hash::make('password'),
-                'permissions' => [
-                    'platform.index' => true,
-                ],
+                'permissions' => ['platform.index' => true],
             ]
         );
 
@@ -74,9 +57,7 @@ class UserSeeder extends Seeder
             [
                 'name'        => 'Bruno Corretor',
                 'password'    => Hash::make('password'),
-                'permissions' => [
-                    'platform.index' => true,
-                ],
+                'permissions' => ['platform.index' => true],
             ]
         );
 
@@ -84,10 +65,8 @@ class UserSeeder extends Seeder
             $corretor2->addRole($corretorRole);
         }
 
-        // 🔹 Mensagens no console
-        $this->command->info('✅ Usuários criados ou atualizados com sucesso!');
-        $this->command->info('→ admin@crm.com (Administrador)');
-        $this->command->info('→ corretor1@crm.com, corretor2@crm.com (Corretores)');
-        $this->command->info('🔐 Senha padrão: password');
+        $this->command->info('✅ Usuários e papéis configurados:');
+        $this->command->info('→ Admin: admin@crm.com / password');
+        $this->command->info('→ Corretores: corretor1@crm.com, corretor2@crm.com / password');
     }
 }

@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace App\Orchid;
 
-use App\Models\Opportunity; // Importa o modelo Opportunity para o badge
-use App\Orchid\Screens\OpportunityListScreen; // CORRIGIDO: Nome da Screen para Kanban
-use App\Orchid\Screens\Vendedor; // Mantido, mas verifique o nome da classe
-use App\Orchid\Screens\Imovel; // Mantido, mas verifique o nome da classe
+use App\Models\Opportunity;
 use Orchid\Platform\Dashboard;
 use Orchid\Platform\ItemPermission;
 use Orchid\Platform\OrchidServiceProvider;
@@ -18,97 +15,95 @@ class PlatformProvider extends OrchidServiceProvider
 {
     /**
      * Bootstrap the application services.
-     *
-     * @param Dashboard $dashboard
-     *
-     * @return void
      */
     public function boot(Dashboard $dashboard): void
     {
         parent::boot($dashboard);
-
-        // ...
+        // Você pode adicionar lógicas de inicialização aqui (ex: registrar badges globais)
     }
 
     /**
-     * Register the application menu.
-     *
-     * @return Menu[]
+     * Registra o menu lateral principal.
      */
     public function menu(): array
     {
         return [
+
+            // -----------------------------------------------------
+            // 🏠 SEÇÃO: NAVEGAÇÃO GERAL
+            // -----------------------------------------------------
             Menu::make('Painel Principal')
-                ->icon('bs.book')
+                ->icon('bs.house')
                 ->title('Navegação')
-                ->route(config('platform.index')),
+                ->route(config('platform.index'))
+                ->permission('platform.index'),
 
-            // ---------------------------------------------
-            // GESTÃO IMOBILIÁRIA (CRM)
-            // ---------------------------------------------
-            
-            // Oportunidades (Item Principal e Título da Seção)
-            Menu::make('Oportunidades (Kanban)')
+            // -----------------------------------------------------
+            // 🏢 SEÇÃO: GESTÃO IMOBILIÁRIA / CRM
+            // -----------------------------------------------------
+
+            // Kanban de Oportunidades
+            Menu::make('Kanban de Oportunidades')
                 ->icon('bs.columns-gap')
-                ->route('platform.opportunity.list') // CORREÇÃO: Usa a rota definida no routes/platform.php
-                ->title('Gestão Imobiliária') // Define o título da seção
-                ->permission('platform.opportunities')
+                ->route('platform.opportunity.list')
+                ->title('Gestão Imobiliária')
+                ->permission('platform.opportunity.list')
                 ->sort(90)
-                // Adiciona o badge para Leads 'Novo Lead / Sem Atendimento'
-                ->badge(fn () => Opportunity::where('etapa_pipeline', 'Novo Lead / Sem Atendimento')->count(), Color::INFO),
+                ->badge(fn ()
+                => Opportunity::where('etapa_pipeline', 'Novo Lead / Sem Atendimento')->count(), Color::INFO),
 
-            // Imóveis (Sub-item)
+            // Imóveis
             Menu::make('Imóveis')
                 ->icon('bs.house-door')
                 ->route('platform.imoveis.list')
                 ->permission('platform.imoveis')
-                ->title('Gestão Imobiliária') // Usa o mesmo título da seção para agrupamento
-                ->sort(110),
-                
-            // Vendedores / Construtoras (Sub-item)
+                ->sort(100),
+
+            // Vendedores / Construtoras
             Menu::make('Vendedores / Construtoras')
                 ->icon('bs.person-rolodex')
-                ->route('platform.vendedores.list') 
-                ->permission('platform.vendedores') 
-                ->title('Gestão Imobiliária') // Usa o mesmo título da seção para agrupamento
-                ->sort(120)
+                ->route('platform.vendedores.list')
+                ->permission('platform.vendedores')
+                ->sort(110)
                 ->divider(),
 
-            // ---------------------------------------------
-            // ACESSOS PADRÃO (Mantido)
-            // ---------------------------------------------
-            
-            Menu::make(__('Users'))
+            // -----------------------------------------------------
+            // ⚙️ SEÇÃO: CONTROLE DE ACESSO
+            // -----------------------------------------------------
+            Menu::make(__('Usuários'))
                 ->icon('bs.people')
                 ->route('platform.systems.users')
                 ->permission('platform.systems.users')
-                ->title(__('Access Controls')),
+                ->title(__('Controle de Acesso')),
 
-            Menu::make(__('Roles'))
-                ->icon('bs.shield')
+            Menu::make(__('Papéis e Permissões'))
+                ->icon('bs.shield-lock')
                 ->route('platform.systems.roles')
-                ->permission('platform.systems.roles')
-                ->divider(),
+                ->permission('platform.systems.roles'),
         ];
     }
 
     /**
-     * Register permissions for the application.
-     *
-     * @return ItemPermission[]
+     * Registra os grupos de permissões disponíveis no painel.
      */
     public function permissions(): array
     {
         return [
-            ItemPermission::group(__('System'))
-                ->addPermission('platform.systems.roles', __('Roles'))
-                ->addPermission('platform.systems.users', __('Users')),
 
-            // Permissões do CRM (Mantidas)
-            ItemPermission::group('Imobiliário')
-                ->addPermission('platform.opportunities', 'Acesso ao Kanban de Oportunidades')
-                ->addPermission('platform.vendedores', 'Acesso à Gestão de Vendedores')
-                ->addPermission('platform.imoveis', 'Acesso à Gestão de Imóveis'),
+            // -----------------------------------------------------
+            // 🔒 Permissões de Sistema
+            // -----------------------------------------------------
+            ItemPermission::group(__('Sistema'))
+                ->addPermission('platform.systems.roles', __('Gerenciar Papéis'))
+                ->addPermission('platform.systems.users', __('Gerenciar Usuários')),
+
+            // -----------------------------------------------------
+            // 🏢 Permissões do CRM Imobiliário
+            // -----------------------------------------------------
+            ItemPermission::group('Gestão Imobiliária / CRM')
+                ->addPermission('platform.opportunity.list', 'Acesso ao Kanban de Oportunidades')
+                ->addPermission('platform.imoveis', 'Acesso à Gestão de Imóveis')
+                ->addPermission('platform.vendedores', 'Acesso à Gestão de Vendedores / Construtoras'),
         ];
     }
 }

@@ -16,18 +16,20 @@ class RolesAndPermissionsSeeder extends Seeder
     public function run(OrchidDashboard $dashboard): void
     {
         // ==========================================================
-        // 1. Permissões Customizadas
+        // 1. Permissões Customizadas do Sistema
         // ==========================================================
         $customPermissions = [
-            'platform.opportunities',
+            'platform.opportunity.list', // ✅ adicionada explicitamente
+            'platform.opportunity.create',
+            'platform.opportunity.edit',
+            'platform.opportunity.update_stage',
             'platform.vendedores',
             'platform.imoveis',
         ];
 
-        // CORREÇÃO 1: getPermission() (singular)
-        // CORREÇÃO 2: $group é array, não objeto → use $group['list']
+        // Obtém permissões internas do Orchid
         $systemPermissions = collect($dashboard->getPermission())
-            ->flatMap(fn ($group) => $group['list'] ?? []) // ← AQUI!
+            ->flatMap(fn($group) => $group['list'] ?? [])
             ->pluck('slug')
             ->unique()
             ->toArray();
@@ -43,23 +45,23 @@ class RolesAndPermissionsSeeder extends Seeder
         $corretorPermissions = array_fill_keys($customPermissions, true);
         $corretorPermissions['platform.index'] = true;
         $corretorPermissions['platform.systems'] = false;
-        $corretorPermissions['platform.systems.users'] = true;
+        $corretorPermissions['platform.systems.users'] = false;
         $corretorPermissions['platform.profile'] = true;
 
         // ==========================================================
         // 3. Criação dos Papéis
         // ==========================================================
-        Role::firstOrCreate(['slug' => 'administrator'], [
+        Role::updateOrCreate(['slug' => 'administrator'], [
             'name'        => 'Administrador Global',
             'permissions' => $adminPermissions,
         ]);
 
-        Role::firstOrCreate(['slug' => 'imobiliaria'], [
+        Role::updateOrCreate(['slug' => 'imobiliaria'], [
             'name'        => 'Gerente de Imobiliária',
             'permissions' => $adminPermissions,
         ]);
 
-        Role::firstOrCreate(['slug' => 'corretor'], [
+        Role::updateOrCreate(['slug' => 'corretor'], [
             'name'        => 'Corretor de Vendas',
             'permissions' => $corretorPermissions,
         ]);

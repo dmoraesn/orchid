@@ -3,38 +3,49 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
 class DatabaseSeeder extends Seeder
 {
-    // Opcional, mantendo a configuração original de ignorar eventos
-    use WithoutModelEvents; 
+    use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
+     * Executa todos os seeders necessários para a aplicação.
      */
     public function run(): void
     {
-        // 1. Chamar o seeder de Papéis/Permissões
-        // Ele cria os Roles 'admin', 'imobiliaria' e 'corretor'.
+        $this->command->info('🚀 Iniciando o processo de seed do banco de dados...');
+
+        // 1️⃣ Papéis e Permissões básicas
         $this->call([
             RolesAndPermissionsSeeder::class,
         ]);
+        $this->command->info('✅ Roles e permissões básicas criadas.');
 
-        // 2. Chamar o seeder de Usuários
-        // Ele cria os usuários 'admin@crm.com' e 'corretor1@crm.com' e os associa aos papéis.
+        // 2️⃣ Usuários padrão (Admin, Corretor, etc.)
         $this->call([
             UserSeeder::class,
         ]);
+        $this->command->info('✅ Usuários padrão criados.');
 
-
-        // 3. (Opcional) Criação de um usuário genérico, se ainda necessário
-        // Se o UserSeeder já cria o Admin, esta linha pode ser removida ou modificada.
-        // Mantenho a estrutura original, mas ajusto a criação de um usuário de teste simples.
-        User::factory()->create([
-             'name' => 'Teste Genérico',
-             'email' => 'generico@example.com',
+        // 3️⃣ Permissões específicas (como o acesso ao Kanban de Oportunidades)
+        $this->call([
+            OpportunityPermissionSeeder::class,
         ]);
+        $this->command->info('✅ Permissão "platform.opportunity.list" aplicada ao papel admin.');
+
+        // 4️⃣ Usuário genérico de teste (opcional)
+        if (!User::where('email', 'generico@example.com')->exists()) {
+            User::factory()->create([
+                'name' => 'Teste Genérico',
+                'email' => 'generico@example.com',
+            ]);
+            $this->command->info('👤 Usuário genérico criado.');
+        } else {
+            $this->command->warn('ℹ️ Usuário genérico já existe — não foi recriado.');
+        }
+
+        $this->command->info('🎯 Seed finalizado com sucesso!');
     }
 }
